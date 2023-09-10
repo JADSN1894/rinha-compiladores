@@ -1,0 +1,24 @@
+[workspace]
+members = ['xpto']
+default-members = ["xpto"]
+resolver = "2"
+
+[workspace.package]
+publish = false
+edition = "2021"
+rust-version = "1.72.0"
+version = "0.0.1"
+description = ""
+authors = ["https://github.com/JADSN1894"]
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1.0.188", features = ["serde_derive"] }
+serde_json = { version = "1.0.106" }
+thiserror = { version = "1.0.48" }
+
+[profile.release]
+strip = true
+opt-level = "s"
+lto = true
+overflow-checks = true
