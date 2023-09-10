@@ -13,7 +13,9 @@ authors = ["https://github.com/JADSN1894"]
 license = "MIT"
 
 [workspace.dependencies]
-
+serde = { version = "1.0.188", features = ["serde_derive"] }
+serde_json = { version = "1.0.106" }
+thiserror = { version = "1.0.48" }
 
 [profile.release]
 strip = true
