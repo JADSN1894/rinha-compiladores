@@ -88,53 +88,67 @@ enum Val {
     Str(String),
 }
 
-fn eval(term: Term) -> AppResult<Val> {
-    match term {
-        Term::Int(number) => Ok(Val::Int(number.value)),
-        Term::Str(text) => Ok(Val::Str(text.value)),
-        Term::Print(print) => {
-            let val = eval(*print.value)?;
-            match val {
-                Val::Int(n) => {
-                    print!("{n}");
-                    Ok(Val::Int(n))
+impl TryFrom<Term> for Val {
+    type Error = AppError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term {
+            Term::Int(number) => Ok(Val::Int(number.value)),
+            Term::Str(text) => Ok(Val::Str(text.value)),
+            Term::Print(print) => {
+                let val = eval(*print.value)?;
+                match val {
+                    Val::Int(n) => {
+                        print!("{n}");
+                        Ok(Val::Int(n))
+                    }
+                    Val::Bool(b) => {
+                        print!("{b}");
+                        Ok(Val::Bool(b))
+                    }
+                    Val::Str(s) => {
+                        print!("{s}");
+                        Ok(Val::Str(s))
+                    }
+                    Val::Void => Ok(Val::Void),
                 }
-                Val::Bool(b) => {
-                    print!("{b}");
-                    Ok(Val::Bool(b))
-                }
-                Val::Str(s) => {
-                    print!("{s}");
-                    Ok(Val::Str(s))
-                }
-                Val::Void => Ok(Val::Void),
             }
+            Term::Binary(binary) => match binary.op {
+                BinaryOp::Add => {
+                    let lhs = eval(*binary.lhs)?;
+                    let rhs = eval(*binary.rhs)?;
+    
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
+                        (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Int(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Str(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                }
+                BinaryOp::Sub => {
+                    let lhs = eval(*binary.lhs)?;
+                    let rhs = eval(*binary.rhs)?;
+    
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
+                        (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Int(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Str(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                }
+            },
         }
-        Term::Binary(binary) => match binary.op {
-            BinaryOp::Add => {
-                let lhs = eval(*binary.lhs)?;
-                let rhs = eval(*binary.rhs)?;
-
-                match (lhs, rhs) {
-                    (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
-                    (a, b) => Err(AppError::ImpossibleState(format!(
-                        "both vals {a:?} and {b:?} must be numbers",
-                    ))),
-                }
-            }
-            BinaryOp::Sub => {
-                let lhs = eval(*binary.lhs)?;
-                let rhs = eval(*binary.rhs)?;
-
-                match (lhs, rhs) {
-                    (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
-                    (a, b) => Err(AppError::ImpossibleState(format!(
-                        "both vals {a:?} and {b:?} must be numbers",
-                    ))),
-                }
-            }
-        },
     }
+}
+
+fn eval(term: Term) -> AppResult<Val> {
+   Val::try_from(term)
 }
 
 fn main() -> AppResult<()> {
