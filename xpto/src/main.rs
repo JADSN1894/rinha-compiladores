@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io::{stdin, Read}};
 
 use serde::Deserialize;
 
@@ -86,10 +86,12 @@ fn eval(term: Term) -> Val {
 }
 
 fn main() -> AppResult<()> {
-    let program =
-        fs::read_to_string("./examples/hello.json").map_err(|error| AppError::StdIoError(error))?;
+    let mut program = String::new();
+    stdin().lock().read_to_string(&mut program).map_err(|error| AppError::StdIoError(error))?;
+
     let program =
         serde_json::from_str::<File>(&program).map_err(|error| AppError::SerdeJsonError(error))?;
+
     let term = program.expression;
     eval(term);
 
