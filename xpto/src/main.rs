@@ -20,31 +20,31 @@ enum AppError {
 
 type AppResult<T> = Result<T, AppError>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Print {
     value: Box<Term>,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Str {
     value: String,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Int {
     value: i32,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Bool {
     value: bool,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Binary {
     lhs: Box<Term>,
     op: BinaryOp,
@@ -52,7 +52,7 @@ struct Binary {
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct If {
     condition: Box<Term>,
     then: Box<Term>,
@@ -60,13 +60,13 @@ struct If {
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Parameter {
     text: String,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Let {
     name: Parameter,
     value: Box<Term>,
@@ -74,19 +74,33 @@ struct Let {
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Var {
     text: String,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+struct Function {
+    parameters: Vec<Parameter>,
+    value: Box<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Call {
+    callee: Box<Term>,
+    arguments: Vec<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 enum BinaryOp {
     Add,
     Sub,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind")]
 enum Term {
     Int(Int),
@@ -97,16 +111,18 @@ enum Term {
     If(If),
     Let(Let),
     Var(Var),
+    Function(Function),
+    Call(Call),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct File {
     name: String,
     expression: Term,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Location {
     start: usize,
     end: usize,
@@ -119,6 +135,11 @@ enum Val {
     Int(i32),
     Bool(bool),
     Str(String),
+    Closure {
+        body: Term,
+        parameters: Vec<Parameter>,
+        enviroment: Scope,
+    },
 }
 
 type Scope = HashMap<String, Val>;
@@ -145,6 +166,11 @@ impl Val {
                         Ok(Val::Str(s))
                     }
                     Val::Void => Ok(Val::Void),
+                    Val::Closure {
+                        body,
+                        parameters,
+                        enviroment,
+                    } => Ok(Val::Closure { body, parameters, enviroment }),
                 }
             }
             Term::Binary(binary) => match binary.op {
@@ -190,10 +216,28 @@ impl Val {
 
                 eval(*leti.next, scope)
             }
-            Term::Var(var) => {
-                match scope.get(&var.text) {
-                    Some(val) => Ok(val.clone()),
-                    None => Err(AppError::ImpossibleState("Variável não encontrada".into())),
+            Term::Var(var) => match scope.get(&var.text) {
+                Some(val) => Ok(val.clone()),
+                None => Err(AppError::ImpossibleState("Variável não encontrada".into())),
+            },
+            Term::Function(func) => Ok(Val::Closure {
+                body: *func.value,
+                parameters: func.parameters,
+                enviroment: scope.clone(),
+            }),
+            Term::Call(call) => {
+                match eval(*call.callee, scope)? {
+                    Val::Closure { body, parameters, enviroment } => {
+                        let mut new_scope = scope.clone();
+
+                        //*  Juntar os parâmetros com os argumentos do call 
+                        for (param, arg) in parameters.into_iter().zip(call.arguments) {
+                            new_scope.insert(param.text,eval(arg, scope)? );
+                        }
+
+                        eval(body, &mut new_scope)
+                    },
+                    val => Err(AppError::ImpossibleState(format!("{val:?} is not a funtion")))
                 }
             },
         }
