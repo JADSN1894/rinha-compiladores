@@ -1,4 +1,7 @@
-use std::fs;
+use std::{
+    fs,
+    io::{stdin, Read},
+};
 
 use serde::Deserialize;
 
@@ -9,6 +12,9 @@ enum AppError {
 
     #[error(transparent)]
     SerdeJsonError(serde_json::Error),
+
+    #[error("{0}")]
+    ImpossibleState(String),
 }
 
 type AppResult<T> = Result<T, AppError>;
@@ -38,11 +44,37 @@ struct Bool {
 }
 
 #[derive(Debug, Deserialize)]
+struct Binary {
+    lhs: Box<Term>,
+    op: BinaryOp,
+    rhs: Box<Term>,
+    location: Location,
+}
+
+
+#[derive(Debug, Deserialize)]
+struct If {
+    condition: Box<Term>,
+    then: Box<Term>,
+    otherwise: Box<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Deserialize)]
+enum BinaryOp {
+    Add,
+    Sub,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "kind")]
 enum Term {
     Int(Int),
     Str(Str),
+    Bool(Bool),
     Print(Print),
+    Binary(Binary),
+    If(If),
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,31 +99,89 @@ enum Val {
     Str(String),
 }
 
-fn eval(term: Term) -> Val {
-    match term {
-        Term::Int(number) => Val::Int(number.value),
-        Term::Str(text) => Val::Str(text.value),
-        Term::Print(print) => {
-            let val = eval(*print.value);
-            match val {
-                Val::Int(n) => print!("{n}"),
-                Val::Bool(b) => print!("{b}"),
-                Val::Str(s) => print!("{s}"),
-                _ => panic!("Valor não suportado"),
-            };
+impl TryFrom<Term> for Val {
+    type Error = AppError;
 
-            Val::Void
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term {
+            Term::Int(number) => Ok(Val::Int(number.value)),
+            Term::Str(text) => Ok(Val::Str(text.value)),
+            Term::Bool(bool) => Ok(Val::Bool(bool.value)),
+            Term::Print(print) => {
+                let val = eval(*print.value)?;
+                match val {
+                    Val::Int(n) => {
+                        print!("{n}");
+                        Ok(Val::Int(n))
+                    }
+                    Val::Bool(b) => {
+                        print!("{b}");
+                        Ok(Val::Bool(b))
+                    }
+                    Val::Str(s) => {
+                        print!("{s}");
+                        Ok(Val::Str(s))
+                    }
+                    Val::Void => Ok(Val::Void),
+                }
+            }
+            Term::Binary(binary) => match binary.op {
+                BinaryOp::Add => {
+                    let lhs = eval(*binary.lhs)?;
+                    let rhs = eval(*binary.rhs)?;
+    
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
+                        (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Int(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Str(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                }
+                BinaryOp::Sub => {
+                    let lhs = eval(*binary.lhs)?;
+                    let rhs = eval(*binary.rhs)?;
+    
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
+                        (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Int(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Str(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                }
+            },
+            Term::If(ifi) => {
+                match eval(*ifi.condition )?{
+                    Val::Bool(true) =>  Ok(eval(*ifi.then)?),
+                    Val::Bool(false) => Ok(eval(*ifi.otherwise)?),
+                    val => Err(AppError::ImpossibleState(format!("Is not bool: {val:?}")))
+                }
+            },
         }
     }
 }
 
+fn eval(term: Term) -> AppResult<Val> {
+   Val::try_from(term)
+}
+
 fn main() -> AppResult<()> {
-    let program =
-        fs::read_to_string("./examples/hello.json").map_err(|error| AppError::StdIoError(error))?;
+    let mut program = String::new();
+    stdin()
+        .lock()
+        .read_to_string(&mut program)
+        .map_err(|error| AppError::StdIoError(error))?;
+
     let program =
         serde_json::from_str::<File>(&program).map_err(|error| AppError::SerdeJsonError(error))?;
+
     let term = program.expression;
-    eval(term);
+    eval(term)?;
 
     Ok(())
 }
