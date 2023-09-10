@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    collections::HashMap,
     io::{stdin, Read},
 };
 
@@ -19,31 +19,31 @@ enum AppError {
 
 type AppResult<T> = Result<T, AppError>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Print {
     value: Box<Term>,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Str {
     value: String,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Int {
     value: i32,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Bool {
     value: bool,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Binary {
     lhs: Box<Term>,
     op: BinaryOp,
@@ -51,8 +51,7 @@ struct Binary {
     location: Location,
 }
 
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct If {
     condition: Box<Term>,
     then: Box<Term>,
@@ -60,13 +59,54 @@ struct If {
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+struct Parameter {
+    text: String,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Let {
+    name: Parameter,
+    value: Box<Term>,
+    next: Box<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Var {
+    text: String,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Function {
+    parameters: Vec<Parameter>,
+    value: Box<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Call {
+    callee: Box<Term>,
+    arguments: Vec<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Closure {
+    body: Term,
+    parameters: Vec<Parameter>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 enum BinaryOp {
     Add,
     Sub,
+    Lt,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind")]
 enum Term {
     Int(Int),
@@ -75,61 +115,61 @@ enum Term {
     Print(Print),
     Binary(Binary),
     If(If),
+    Let(Let),
+    Var(Var),
+    Function(Function),
+    Call(Call),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct File {
     name: String,
     expression: Term,
     location: Location,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Location {
     start: usize,
     end: usize,
     filename: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 enum Val {
     Void,
     Int(i32),
     Bool(bool),
     Str(String),
+    Closure {
+        body: Term,
+        parameters: Vec<Parameter>,
+    },
 }
 
-impl TryFrom<Term> for Val {
-    type Error = AppError;
+type Scope = HashMap<String, Val>;
 
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
+impl Val {
+    fn try_from(term: Term, scope: &mut Scope) -> AppResult<Self> {
         match term {
             Term::Int(number) => Ok(Val::Int(number.value)),
             Term::Str(text) => Ok(Val::Str(text.value)),
             Term::Bool(bool) => Ok(Val::Bool(bool.value)),
             Term::Print(print) => {
-                let val = eval(*print.value)?;
+                let val = eval(*print.value, scope)?;
                 match val {
-                    Val::Int(n) => {
-                        print!("{n}");
-                        Ok(Val::Int(n))
-                    }
-                    Val::Bool(b) => {
-                        print!("{b}");
-                        Ok(Val::Bool(b))
-                    }
-                    Val::Str(s) => {
-                        print!("{s}");
-                        Ok(Val::Str(s))
-                    }
+                    Val::Int(n) => Ok(Val::Int(n)),
+                    Val::Bool(b) => Ok(Val::Bool(b)),
+                    Val::Str(s) => Ok(Val::Str(s)),
                     Val::Void => Ok(Val::Void),
+                    Val::Closure { body, parameters } => Ok(Val::Closure { body, parameters }),
                 }
             }
             Term::Binary(binary) => match binary.op {
                 BinaryOp::Add => {
-                    let lhs = eval(*binary.lhs)?;
-                    let rhs = eval(*binary.rhs)?;
-    
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
                         (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
@@ -141,9 +181,9 @@ impl TryFrom<Term> for Val {
                     }
                 }
                 BinaryOp::Sub => {
-                    let lhs = eval(*binary.lhs)?;
-                    let rhs = eval(*binary.rhs)?;
-    
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
                         (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
@@ -154,20 +194,62 @@ impl TryFrom<Term> for Val {
                         ))),
                     }
                 }
-            },
-            Term::If(ifi) => {
-                match eval(*ifi.condition )?{
-                    Val::Bool(true) =>  Ok(eval(*ifi.then)?),
-                    Val::Bool(false) => Ok(eval(*ifi.otherwise)?),
-                    val => Err(AppError::ImpossibleState(format!("Is not bool: {val:?}")))
+                BinaryOp::Lt => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a < b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
                 }
             },
+            Term::If(ifi) => match eval(*ifi.condition, scope)? {
+                Val::Bool(true) => eval(*ifi.then, scope),
+                Val::Bool(false) => eval(*ifi.otherwise, scope),
+                val => Err(AppError::ImpossibleState(format!("Is not bool: {val:?}"))),
+            },
+            Term::Let(leti) => {
+                let name = leti.name.text;
+                let value = eval(*leti.value, scope)?;
+
+                scope.insert(name, value);
+
+                eval(*leti.next, scope)
+            }
+            Term::Var(var) => match scope.get(&var.text) {
+                Some(val) => Ok(val.clone()),
+                None => Err(AppError::ImpossibleState("Variável não encontrada".into())),
+            },
+            Term::Function(func) => Ok(Val::Closure {
+                body: *func.value,
+                parameters: func.parameters,
+            }),
+            Term::Call(call) => {
+                match eval(*call.callee, scope)? {
+                    Val::Closure { body, parameters } => {
+                        let mut new_scope = scope.clone();
+
+                        //*  Juntar os parâmetros com os argumentos do call
+                        for (param, arg) in parameters.into_iter().zip(call.arguments) {
+                            new_scope.insert(param.text, eval(arg, scope)?);
+                        }
+
+                        eval(body, &mut new_scope)
+                    }
+                    val => Err(AppError::ImpossibleState(format!(
+                        "{val:?} is not a funtion"
+                    ))),
+                }
+            }
         }
     }
 }
 
-fn eval(term: Term) -> AppResult<Val> {
-   Val::try_from(term)
+fn eval(term: Term, scope: &mut Scope) -> AppResult<Val> {
+    Val::try_from(term, scope)
 }
 
 fn main() -> AppResult<()> {
@@ -181,7 +263,9 @@ fn main() -> AppResult<()> {
         serde_json::from_str::<File>(&program).map_err(|error| AppError::SerdeJsonError(error))?;
 
     let term = program.expression;
-    eval(term)?;
+    let mut scope = Scope::default();
 
+    let result = eval(term, &mut scope)?;
+    println!("{result:?}");
     Ok(())
 }
