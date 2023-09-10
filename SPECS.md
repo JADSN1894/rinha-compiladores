@@ -75,7 +75,7 @@ Onde `..` é um location node que foi ocultado por brevidade.
 
 ### Var (Nome de uma variável)
 
-`Var` representa o nome de uma variável. É definida por:
+`Var` representa o nome de uma variável, recupera o valor definido em um `Let`. É definida por:
 
 | Nome     | Tipo                  |
 | -------- | --------------------- |
