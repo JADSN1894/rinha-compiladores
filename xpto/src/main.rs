@@ -1,4 +1,7 @@
-use std::{fs, io::{stdin, Read}};
+use std::{
+    fs,
+    io::{stdin, Read},
+};
 
 use serde::Deserialize;
 
@@ -9,6 +12,9 @@ enum AppError {
 
     #[error(transparent)]
     SerdeJsonError(serde_json::Error),
+
+    #[error("{0}")]
+    ImpossibleState(String),
 }
 
 type AppResult<T> = Result<T, AppError>;
@@ -38,11 +44,26 @@ struct Bool {
 }
 
 #[derive(Debug, Deserialize)]
+struct Binary {
+    lhs: Box<Term>,
+    op: BinaryOp,
+    rhs: Box<Term>,
+    location: Location,
+}
+
+#[derive(Debug, Deserialize)]
+enum BinaryOp {
+    Add,
+    Sub,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "kind")]
 enum Term {
     Int(Int),
     Str(Str),
     Print(Print),
+    Binary(Binary),
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,33 +88,67 @@ enum Val {
     Str(String),
 }
 
-fn eval(term: Term) -> Val {
+fn eval(term: Term) -> AppResult<Val> {
     match term {
-        Term::Int(number) => Val::Int(number.value),
-        Term::Str(text) => Val::Str(text.value),
+        Term::Int(number) => Ok(Val::Int(number.value)),
+        Term::Str(text) => Ok(Val::Str(text.value)),
         Term::Print(print) => {
-            let val = eval(*print.value);
+            let val = eval(*print.value)?;
             match val {
-                Val::Int(n) => print!("{n}"),
-                Val::Bool(b) => print!("{b}"),
-                Val::Str(s) => print!("{s}"),
-                _ => panic!("Valor não suportado"),
-            };
-
-            Val::Void
+                Val::Int(n) => {
+                    print!("{n}");
+                    Ok(Val::Int(n))
+                }
+                Val::Bool(b) => {
+                    print!("{b}");
+                    Ok(Val::Bool(b))
+                }
+                Val::Str(s) => {
+                    print!("{s}");
+                    Ok(Val::Str(s))
+                }
+                Val::Void => Ok(Val::Void),
+            }
         }
+        Term::Binary(binary) => match binary.op {
+            BinaryOp::Add => {
+                let lhs = eval(*binary.lhs)?;
+                let rhs = eval(*binary.rhs)?;
+
+                match (lhs, rhs) {
+                    (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
+                    (a, b) => Err(AppError::ImpossibleState(format!(
+                        "both vals {a:?} and {b:?} must be numbers",
+                    ))),
+                }
+            }
+            BinaryOp::Sub => {
+                let lhs = eval(*binary.lhs)?;
+                let rhs = eval(*binary.rhs)?;
+
+                match (lhs, rhs) {
+                    (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
+                    (a, b) => Err(AppError::ImpossibleState(format!(
+                        "both vals {a:?} and {b:?} must be numbers",
+                    ))),
+                }
+            }
+        },
     }
 }
 
 fn main() -> AppResult<()> {
     let mut program = String::new();
-    stdin().lock().read_to_string(&mut program).map_err(|error| AppError::StdIoError(error))?;
+    stdin()
+        .lock()
+        .read_to_string(&mut program)
+        .map_err(|error| AppError::StdIoError(error))?;
 
     let program =
         serde_json::from_str::<File>(&program).map_err(|error| AppError::SerdeJsonError(error))?;
 
     let term = program.expression;
-    eval(term);
+    eval(term)?;
 
     Ok(())
 }
