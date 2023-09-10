@@ -103,7 +103,15 @@ struct Closure {
 enum BinaryOp {
     Add,
     Sub,
+    Mul,
+    Eq,
+    Neq,
     Lt,
+    Gt,
+    Lte,
+    Gte,
+    And,
+    Or
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -179,7 +187,7 @@ impl Val {
                             "{a:?}{b:?} does not match any criteria",
                         ))),
                     }
-                }
+                } 
                 BinaryOp::Sub => {
                     let lhs = eval(*binary.lhs, scope)?;
                     let rhs = eval(*binary.rhs, scope)?;
@@ -205,6 +213,97 @@ impl Val {
                         ))),
                     }
                 }
+                BinaryOp::Mul => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a * b)),
+                        (Val::Str(a), Val::Int(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Int(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (Val::Str(a), Val::Str(b)) => Ok(Val::Str(format!("{a}{b}"))),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Eq => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a == b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Neq => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a != b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Gt => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a > b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Lte => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a <= b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Gte => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a >= b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::And => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Bool(a), Val::Bool(b)) => Ok(Val::Bool(a && b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
+                BinaryOp::Or => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Bool(a), Val::Bool(b)) => Ok(Val::Bool(a || b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                },
             },
             Term::If(ifi) => match eval(*ifi.condition, scope)? {
                 Val::Bool(true) => eval(*ifi.then, scope),
