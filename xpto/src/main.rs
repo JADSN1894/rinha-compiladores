@@ -51,6 +51,15 @@ struct Binary {
     location: Location,
 }
 
+
+#[derive(Debug, Deserialize)]
+struct If {
+    condition: Box<Term>,
+    then: Box<Term>,
+    otherwise: Box<Term>,
+    location: Location,
+}
+
 #[derive(Debug, Deserialize)]
 enum BinaryOp {
     Add,
@@ -62,8 +71,10 @@ enum BinaryOp {
 enum Term {
     Int(Int),
     Str(Str),
+    Bool(Bool),
     Print(Print),
     Binary(Binary),
+    If(If),
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,6 +106,7 @@ impl TryFrom<Term> for Val {
         match term {
             Term::Int(number) => Ok(Val::Int(number.value)),
             Term::Str(text) => Ok(Val::Str(text.value)),
+            Term::Bool(bool) => Ok(Val::Bool(bool.value)),
             Term::Print(print) => {
                 let val = eval(*print.value)?;
                 match val {
@@ -141,6 +153,13 @@ impl TryFrom<Term> for Val {
                             "{a:?}{b:?} does not match any criteria",
                         ))),
                     }
+                }
+            },
+            Term::If(ifi) => {
+                match eval(*ifi.condition )?{
+                    Val::Bool(true) =>  Ok(eval(*ifi.then)?),
+                    Val::Bool(false) => Ok(eval(*ifi.otherwise)?),
+                    val => Err(AppError::ImpossibleState(format!("Is not bool: {val:?}")))
                 }
             },
         }
