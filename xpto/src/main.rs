@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fs,
     io::{stdin, Read},
 };
 
@@ -95,9 +94,16 @@ struct Call {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct Closure {
+    body: Term,
+    parameters: Vec<Parameter>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 enum BinaryOp {
     Add,
     Sub,
+    Lt,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -138,7 +144,6 @@ enum Val {
     Closure {
         body: Term,
         parameters: Vec<Parameter>,
-        enviroment: Scope,
     },
 }
 
@@ -153,24 +158,11 @@ impl Val {
             Term::Print(print) => {
                 let val = eval(*print.value, scope)?;
                 match val {
-                    Val::Int(n) => {
-                        print!("{n}");
-                        Ok(Val::Int(n))
-                    }
-                    Val::Bool(b) => {
-                        print!("{b}");
-                        Ok(Val::Bool(b))
-                    }
-                    Val::Str(s) => {
-                        print!("{s}");
-                        Ok(Val::Str(s))
-                    }
+                    Val::Int(n) => Ok(Val::Int(n)),
+                    Val::Bool(b) => Ok(Val::Bool(b)),
+                    Val::Str(s) => Ok(Val::Str(s)),
                     Val::Void => Ok(Val::Void),
-                    Val::Closure {
-                        body,
-                        parameters,
-                        enviroment,
-                    } => Ok(Val::Closure { body, parameters, enviroment }),
+                    Val::Closure { body, parameters } => Ok(Val::Closure { body, parameters }),
                 }
             }
             Term::Binary(binary) => match binary.op {
@@ -202,6 +194,17 @@ impl Val {
                         ))),
                     }
                 }
+                BinaryOp::Lt => {
+                    let lhs = eval(*binary.lhs, scope)?;
+                    let rhs = eval(*binary.rhs, scope)?;
+
+                    match (lhs, rhs) {
+                        (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a < b)),
+                        (a, b) => Err(AppError::ImpossibleState(format!(
+                            "{a:?}{b:?} does not match any criteria",
+                        ))),
+                    }
+                }
             },
             Term::If(ifi) => match eval(*ifi.condition, scope)? {
                 Val::Bool(true) => eval(*ifi.then, scope),
@@ -223,23 +226,24 @@ impl Val {
             Term::Function(func) => Ok(Val::Closure {
                 body: *func.value,
                 parameters: func.parameters,
-                enviroment: scope.clone(),
             }),
             Term::Call(call) => {
                 match eval(*call.callee, scope)? {
-                    Val::Closure { body, parameters, enviroment } => {
+                    Val::Closure { body, parameters } => {
                         let mut new_scope = scope.clone();
 
-                        //*  Juntar os parâmetros com os argumentos do call 
+                        //*  Juntar os parâmetros com os argumentos do call
                         for (param, arg) in parameters.into_iter().zip(call.arguments) {
-                            new_scope.insert(param.text,eval(arg, scope)? );
+                            new_scope.insert(param.text, eval(arg, scope)?);
                         }
 
                         eval(body, &mut new_scope)
-                    },
-                    val => Err(AppError::ImpossibleState(format!("{val:?} is not a funtion")))
+                    }
+                    val => Err(AppError::ImpossibleState(format!(
+                        "{val:?} is not a funtion"
+                    ))),
                 }
-            },
+            }
         }
     }
 }
@@ -259,9 +263,9 @@ fn main() -> AppResult<()> {
         serde_json::from_str::<File>(&program).map_err(|error| AppError::SerdeJsonError(error))?;
 
     let term = program.expression;
-
     let mut scope = Scope::default();
-    eval(term, &mut scope)?;
 
+    let result = eval(term, &mut scope)?;
+    println!("{result:?}");
     Ok(())
 }
