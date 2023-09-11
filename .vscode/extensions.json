@@ -2,6 +2,7 @@
     "recommendations": [
         "skellock.just",
         "rust-lang.rust-analyzer",
-        "serayuzgur.crates"
+        "serayuzgur.crates",
+        "aaron-bond.better-comments"
     ]
 }
