@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, default};
 
 use serde::Deserialize;
 
@@ -8,8 +8,9 @@ use super::{binary_op::BinaryOp, closure::Closure, term::Term};
 
 pub(crate) type Scope = HashMap<String, Val>;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub(crate) enum Val {
+    #[default]
     Void,
     Int(i32),
     Bool(bool),
@@ -19,6 +20,14 @@ pub(crate) enum Val {
 }
 
 impl Val {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn eval(term: Term, scope: &mut Scope) -> AppResult<Val> {
+        Self::try_from(term, scope)
+    }
+
     pub(crate) fn try_from(term: Term, scope: &mut Scope) -> AppResult<Self> {
         match term {
             Term::Int(number) => Ok(Val::Int(number.value())),
@@ -26,7 +35,7 @@ impl Val {
             Term::Bool(bool) => Ok(Val::Bool(bool.value())),
             Term::Print(print) => {
                 let print = print.clone();
-                let val = eval(print.value().clone(), scope)?;
+                let val = Self::eval(print.value().clone(), scope)?;
                 match val {
                     Val::Int(n) => Ok(Val::Int(n)),
                     Val::Bool(b) => Ok(Val::Bool(b)),
@@ -37,8 +46,8 @@ impl Val {
             }
             Term::Binary(binary) => match binary.op() {
                 BinaryOp::Add => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a + b)),
@@ -51,8 +60,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Sub => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a - b)),
@@ -65,8 +74,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Lt => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a < b)),
@@ -76,8 +85,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Mul => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a * b)),
@@ -90,8 +99,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Eq => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a == b)),
@@ -101,8 +110,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Neq => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a != b)),
@@ -112,8 +121,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Gt => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a > b)),
@@ -123,8 +132,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Lte => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a <= b)),
@@ -134,8 +143,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Gte => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Int(a), Val::Int(b)) => Ok(Val::Bool(a >= b)),
@@ -145,8 +154,8 @@ impl Val {
                     }
                 }
                 BinaryOp::And => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Bool(a), Val::Bool(b)) => Ok(Val::Bool(a && b)),
@@ -156,8 +165,8 @@ impl Val {
                     }
                 }
                 BinaryOp::Or => {
-                    let lhs = eval(binary.lhs().clone(), scope)?;
-                    let rhs = eval(binary.rhs().clone(), scope)?;
+                    let lhs = Self::eval(binary.lhs().clone(), scope)?;
+                    let rhs = Self::eval(binary.rhs().clone(), scope)?;
 
                     match (lhs, rhs) {
                         (Val::Bool(a), Val::Bool(b)) => Ok(Val::Bool(a || b)),
@@ -167,18 +176,18 @@ impl Val {
                     }
                 }
             },
-            Term::If(ifi) => match eval(ifi.condition().clone(), scope)? {
-                Val::Bool(true) => eval(ifi.then().clone(), scope),
-                Val::Bool(false) => eval(ifi.otherwise().clone(), scope),
+            Term::If(ifi) => match Self::eval(ifi.condition().clone(), scope)? {
+                Val::Bool(true) => Self::eval(ifi.then().clone(), scope),
+                Val::Bool(false) => Self::eval(ifi.otherwise().clone(), scope),
                 val => Err(AppError::ImpossibleState(format!("Is not bool: {val:?}"))),
             },
             Term::Let(leti) => {
                 let name = leti.name().text();
-                let value = eval(leti.value().clone(), scope)?;
+                let value = Self::eval(leti.value().clone(), scope)?;
 
                 scope.insert(name.into(), value);
 
-                eval(leti.next().clone(), scope)
+                Self::eval(leti.next().clone(), scope)
             }
             Term::Var(var) => match scope.get(var.text()) {
                 Some(val) => Ok(val.clone()),
@@ -189,7 +198,7 @@ impl Val {
                 func.parameters().to_vec(),
             ))),
             Term::Call(call) => {
-                match eval(call.callee().clone(), scope)? {
+                match Self::eval(call.callee().clone(), scope)? {
                     Val::Closure(closure) => {
                         let mut new_scope = scope.clone();
 
@@ -199,10 +208,10 @@ impl Val {
                             .into_iter()
                             .zip(call.arguments().to_vec())
                         {
-                            new_scope.insert(param.text().into(), eval(arg, scope)?);
+                            new_scope.insert(param.text().into(), Self::eval(arg, scope)?);
                         }
 
-                        eval(closure.body().to_owned(), &mut new_scope)
+                        Self::eval(closure.body().to_owned(), &mut new_scope)
                     }
                     val => Err(AppError::ImpossibleState(format!(
                         "{val:?} is not a funtion"
@@ -211,8 +220,4 @@ impl Val {
             }
         }
     }
-}
-
-pub(crate) fn eval(term: Term, scope: &mut Scope) -> AppResult<Val> {
-    Val::try_from(term, scope)
 }

@@ -47,15 +47,11 @@
 mod error;
 mod nodes;
 
-use std::{
-    collections::HashMap,
-    io::{stdin, Read},
-};
+use std::io::{stdin, Read};
 
 use error::{AppError, AppResult};
-use serde::Deserialize;
 
-use crate::nodes::{eval, File, Scope};
+use crate::nodes::{File, Scope, Val};
 
 fn main() -> AppResult<()> {
     let mut program = String::new();
@@ -70,7 +66,7 @@ fn main() -> AppResult<()> {
     let term = program.expression();
     let mut scope = Scope::default();
 
-    let result = eval(term.to_owned(), &mut scope)?;
+    let result = Val::try_from(term.to_owned(), &mut scope)?;
     println!("{result:?}");
     Ok(())
 }

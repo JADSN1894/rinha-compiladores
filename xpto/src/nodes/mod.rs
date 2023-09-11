@@ -17,4 +17,4 @@ mod val;
 mod var;
 
 pub(crate) use file::File;
-pub(crate) use val::{eval, Scope, Val};
+pub(crate) use val::{Scope, Val};
