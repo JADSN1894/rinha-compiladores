@@ -3,6 +3,11 @@ pkgs.mkShell
 {
   nativeBuildInputs = with pkgs.buildPackages;
     [
+      busybox
+      cargo-auditable 
+      cargo-audit
+      cargo-vet
+      cargo-crev
       curl
       git
       tree
@@ -21,6 +26,7 @@ pkgs.mkShell
       watchexec
       hexyl
       zellij
+      just
       vscodium
       #nixd
       nixpkgs-fmt
