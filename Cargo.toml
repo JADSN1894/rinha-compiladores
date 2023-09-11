@@ -1,7 +1,10 @@
+
+
 [workspace]
 members = ['xpto']
 default-members = ["xpto"]
 resolver = "2"
+
 
 [workspace.package]
 publish = false
